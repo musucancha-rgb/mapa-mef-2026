@@ -154,26 +154,19 @@
 
   <script>
     // --- 0. FUNCIÓN GLOBAL DE DESCARGA (SOLUCIÓN MÓVIL) ---
-    // Esta función está fuera de todo para ser accesible globalmente
-    // y fuerza la apertura de la ventana de forma agresiva.
     window.forceDownload = function(url) {
         if (!url) return;
-        
-        // Intenta abrir en nueva pestaña (estándar)
         const win = window.open(url, '_blank');
-        
-        // Fallback: Si el bloqueo de popups lo detiene, redirigir la ventana actual
         if (!win) {
             window.location.href = url;
         }
     };
 
     // --- 1. CONFIGURACIÓN DEL MAPA ---
-    // 'tap: false' es CRÍTICO. En Leaflet moderno, 'tap: true' causa conflictos 
-    // en móviles modernos. Desactivarlo permite que los clicks nativos funcionen.
+    // 'tap: false' es crítico para evitar conflictos de doble tap en móviles modernos
     const map = L.map("map", { 
         zoomControl: false, 
-        tap: false // SOLUCIÓN CLAVE PARA MÓVILES
+        tap: false 
     }).setView([-12.0464, -77.0428], 11); 
     
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -215,13 +208,11 @@
         updateToggleButton();
     }
 
-    // Botón de pestaña lateral
     toggleSideBtn.addEventListener('click', (e) => {
         L.DomEvent.stopPropagation(e);
         togglePanel();
     });
 
-    // Cerrar panel al tocar el mapa (solo en móvil)
     map.on('click', () => {
         if (window.innerWidth < 768 && isPanelOpen) {
             togglePanel(false);
@@ -285,7 +276,7 @@
       const distrito = getDistrictName(p);
       const ubigeo = p.ubigeo || p.UBIGEO || "---";
       
-      // Construimos el HTML. Usamos 'div' con onclick para saltarnos problemas de tags <a> en Leaflet móvil
+      // HTML LIMPIO: Sin onclick inline. Usamos clases para conectar el evento después.
       return `
         <div class="font-sans">
             <div class="bg-slate-800 text-white p-4">
@@ -294,11 +285,9 @@
             </div>
             <div class="p-4 bg-white flex justify-center items-center">
                 ${zipUrl ? `
-                    <div role="button"
-                         onclick="event.stopPropagation(); window.forceDownload('${zipUrl}');"
-                         ontouchend="event.stopPropagation(); window.forceDownload('${zipUrl}');"
-                         class="touch-interactive flex items-center justify-center w-20 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-xl shadow-blue-500/40 transform active:scale-95 cursor-pointer">
-                       <i class="fa-solid fa-file-zipper text-3xl"></i>
+                    <div class="js-download-btn touch-interactive flex items-center justify-center w-20 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-xl shadow-blue-500/40 transform active:scale-95 cursor-pointer"
+                         data-url="${zipUrl}">
+                       <i class="fa-solid fa-file-zipper text-3xl pointer-events-none"></i>
                     </div>
                 ` : `
                     <div class="flex flex-col items-center justify-center py-2 text-slate-400">
@@ -310,6 +299,30 @@
         </div>
       `;
     }
+
+    // --- MANEJO ROBUSTO DE EVENTOS EN POPUP ---
+    // Esta es la solución definitiva para iOS/Móvil:
+    // Escuchar cuando el popup se abre y adjuntar el evento directamente al elemento DOM.
+    map.on('popupopen', function(e) {
+        const popupNode = e.popup._contentNode;
+        // Buscamos el botón por su clase
+        const btn = popupNode.querySelector('.js-download-btn');
+        
+        if (btn) {
+            // Usamos L.DomEvent para asegurar compatibilidad y detener propagación correctamente
+            // Desactiva que el click atraviese al mapa
+            L.DomEvent.disableClickPropagation(btn);
+            
+            // Adjuntar evento click
+            L.DomEvent.on(btn, 'click', function(ev) {
+                // Prevenir comportamiento default y propagación extra
+                L.DomEvent.stop(ev);
+                
+                const url = btn.getAttribute('data-url');
+                if(url) window.forceDownload(url);
+            });
+        }
+    });
 
     function selectFeature(layer) {
         if (selectedLayer && selectedLayer !== layer) {
@@ -335,7 +348,6 @@
         mouseover: highlightFeature,
         mouseout: resetHighlight,
         click: (e) => {
-            // STOP PROPAGATION: Crucial para móvil
             L.DomEvent.stopPropagation(e);
             selectFeature(layer);
         }

@@ -39,11 +39,11 @@
         pointer-events: auto;
     }
 
-    /* Ajuste para móvil: que no se vaya totalmente a la izquierda, sino que se desvanezca o se mueva sutilmente si es centrado */
+    /* Ajuste para móvil */
     @media (max-width: 768px) {
         .panel-hidden {
             opacity: 0;
-            transform: scale(0.9); /* En móvil se contrae en su sitio */
+            transform: scale(0.9); 
         }
     }
 
@@ -61,6 +61,15 @@
         padding: 8px;
         width: 30px;
         height: 30px;
+        z-index: 10;
+    }
+    
+    /* Asegurar que los enlaces en popup sean clickeables en móvil */
+    .popup-btn-download {
+        position: relative;
+        z-index: 1000;
+        cursor: pointer;
+        touch-action: manipulation;
     }
   </style>
 </head>
@@ -68,9 +77,7 @@
 <body class="bg-gray-100 overflow-hidden relative">
 
   <!-- BOTÓN DE CONTROL LATERAL (PESTAÑA) -->
-  <!-- Alineado verticalmente al centro (top-1/2) y fijo a la izquierda -->
   <button id="toggleSideBtn" class="absolute left-0 top-1/2 transform -translate-y-1/2 z-[2000] bg-white text-blue-700 w-8 h-20 rounded-r-xl shadow-xl border-y border-r border-gray-300 flex items-center justify-center hover:bg-blue-50 transition-all duration-300 focus:outline-none group">
-    <!-- El icono cambiará vía JS -->
     <i id="toggleIcon" class="fa-solid fa-chevron-left text-lg transition-transform duration-300"></i>
   </button>
 
@@ -159,9 +166,9 @@
 
   <script>
     // --- 1. CONFIGURACIÓN DEL MAPA ---
-    const map = L.map("map", { zoomControl: false }).setView([-12.0464, -77.0428], 11); // Centrado en Lima
+    // Agregamos tap: true explícitamente (aunque es default, asegura compatibilidad)
+    const map = L.map("map", { zoomControl: false, tap: true }).setView([-12.0464, -77.0428], 11); 
     
-    // Zoom control movido para no estorbar en móviles
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -178,10 +185,8 @@
 
     function updateToggleButton() {
         if (isPanelOpen) {
-            // Si está abierto, icono apunta a la izquierda (para cerrar)
             toggleIcon.className = "fa-solid fa-chevron-left text-lg transition-transform duration-300";
         } else {
-            // Si está cerrado, icono apunta a la derecha (para abrir)
             toggleIcon.className = "fa-solid fa-chevron-right text-lg transition-transform duration-300";
         }
     }
@@ -203,10 +208,13 @@
         updateToggleButton();
     }
 
-    // Evento del botón lateral
-    toggleSideBtn.addEventListener('click', () => togglePanel());
+    toggleSideBtn.addEventListener('click', (e) => {
+        // Detener propagación para que no llegue al mapa
+        L.DomEvent.stopPropagation(e);
+        togglePanel();
+    });
 
-    // En móvil, cerrar panel al tocar el mapa para ver mejor, pero el botón sigue ahí
+    // En móvil, cerrar panel al tocar el mapa, PERO asegurando que no fue un drag
     map.on('click', () => {
         if (window.innerWidth < 768 && isPanelOpen) {
             togglePanel(false);
@@ -217,7 +225,7 @@
     function style(feature) {
       return {
         color: "#3b82f6",
-        weight: 0.5, // LÍNEAS MÁS DELGADAS (Solicitud Usuario)
+        weight: 0.5,
         opacity: 1,
         fillColor: "#60a5fa",
         fillOpacity: 0.1
@@ -228,10 +236,12 @@
       const layer = e.target;
       layer.setStyle({ 
           weight: 2, 
-          color: '#0047FF', // AZUL ULTRAMAR VIBRANTE (Solicitud Usuario)
+          color: '#0047FF', 
           fillOpacity: 0.4 
       });
-      layer.bringToFront();
+      if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+        layer.bringToFront();
+      }
     }
 
     function resetHighlight(e) {
@@ -267,8 +277,8 @@
             <div class="p-4 bg-white">
                 ${zipUrl ? `
                     <p class="text-sm text-slate-600 mb-3">Listado disponible para descarga.</p>
-                    <a href="${zipUrl}" target="_blank" rel="noopener" 
-                       class="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center font-bold py-2 px-4 rounded-lg transition-colors duration-200 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-sm decoration-none">
+                    <a href="${zipUrl}" target="_blank" rel="noopener noreferrer" 
+                       class="popup-btn-download block w-full bg-blue-600 hover:bg-blue-700 text-white text-center font-bold py-3 px-4 rounded-lg transition-colors duration-200 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-sm decoration-none">
                        <i class="fa-solid fa-file-zipper"></i> Descargar ZIP
                     </a>
                 ` : `
@@ -283,12 +293,24 @@
     }
 
     function onEachFeature(feature, layer) {
+      // 1. IMPORTANTE: Vincular el popup FUERA del evento click para estabilidad
+      layer.bindPopup(popupHtml(feature.properties || {}));
+
       layer.on({
         mouseover: highlightFeature,
         mouseout: resetHighlight,
         click: (e) => {
+            // 2. CRUCIAL PARA MÓVIL: Detener la propagación del evento
+            // Esto evita que el click llegue al mapa y cierre el popup inmediatamente
+            L.DomEvent.stopPropagation(e);
+            
             map.flyToBounds(e.target.getBounds(), { padding: [50, 50], maxZoom: 13 });
-            layer.bindPopup(popupHtml(feature.properties || {})).openPopup();
+            layer.openPopup(); // Abrimos el popup que ya estaba vinculado
+            
+            // Opcional: Cerrar panel en móvil al seleccionar para ver el mapa
+            if (window.innerWidth < 768) {
+                togglePanel(false);
+            }
         }
       });
 
@@ -342,15 +364,16 @@
           document.querySelectorAll(".item-result").forEach(i => i.classList.remove("bg-blue-100", "border-blue-200"));
           el.classList.add("bg-blue-100", "border-blue-200");
 
-          // Cerrar panel en móvil al seleccionar resultado para ver el mapa
           if (window.innerWidth < 768) {
               togglePanel(false);
           }
 
           const b = found.layer.getBounds();
           map.flyToBounds(b, { maxZoom: 13, duration: 1.5 });
+          
+          // Retraso ligero para que la animación termine antes de abrir popup
           setTimeout(() => {
-              found.layer.bindPopup(popupHtml(found.feature.properties || {})).openPopup();
+              found.layer.openPopup();
           }, 1000);
         });
       });

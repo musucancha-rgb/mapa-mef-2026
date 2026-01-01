@@ -17,14 +17,81 @@
       top: 12px;
       left: 12px;
       right: 12px;
-      z-index: 1000;
+      z-index: 1200;
       background: rgba(255,255,255,0.95);
       border: 1px solid #ddd;
       border-radius: 12px;
       padding: 10px 14px;
       font-size: 14px;
       line-height: 1.35;
+      pointer-events: auto;
     }
+
+    /* Sidebar */
+    .sidebar {
+      position: absolute;
+      top: 74px;          /* debajo del header */
+      left: 12px;
+      width: 320px;
+      max-width: calc(100% - 24px);
+      height: calc(100% - 86px);
+      z-index: 1200;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .sidebar h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .search {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .search input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search button {
+      padding: 8px 10px;
+      border: 1px solid #000;
+      background: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .results {
+      height: calc(100% - 58px);
+      overflow: auto;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+
+    .item {
+      border: 1px solid #eee;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .item:hover { border-color: #bbb; }
+
+    .item .name { font-weight: bold; }
+    .item .meta { font-size: 12px; color: #555; margin-top: 2px; }
 
     .popup h3 { margin: 0 0 6px; font-size: 16px; }
     .row { margin: 6px 0; }
@@ -46,6 +113,9 @@
       font-weight:bold;
       color:#000;
     }
+
+    /* Evitar que el header y sidebar bloqueen el mapa fuera de sus cajas */
+    .header, .sidebar { pointer-events: auto; }
   </style>
 </head>
 
@@ -55,6 +125,22 @@
   <div class="header">
     <b>Valores arancelarios de terrenos correspondiente al año fiscal 2026</b><br>
     Fuente: Resolución Ministerial N° 514-2025-EF/15
+  </div>
+
+  <!-- PANEL IZQUIERDO -->
+  <div class="sidebar">
+    <h4>Búsqueda por UBIGEO o Distrito</h4>
+
+    <div class="search">
+      <input id="q" type="text" placeholder="Ej: 150101 o Miraflores" />
+      <button id="btnClear" title="Limpiar">X</button>
+    </div>
+
+    <div id="results" class="results">
+      <div style="color:#666; font-size:13px;">
+        Escribe para buscar. Luego haz clic en un resultado para acercar y descargar.
+      </div>
+    </div>
   </div>
 
   <div id="map"></div>
@@ -74,39 +160,104 @@
     }
 
     let geojson;
+    let featuresIndex = [];   // { feature, layer, distrito, ubigeo, zipUrl }
+    const resultsEl = document.getElementById("results");
+    const qEl = document.getElementById("q");
+    const btnClear = document.getElementById("btnClear");
+
+    function popupHtml(p) {
+      const zipUrl = p.mef_zip_url || "";
+      const distrito = p.distrito || p.dist || "Distrito";
+      const ubigeo = p.ubigeo || "";
+      return `
+        <div class="popup">
+          <h3>${distrito}</h3>
+          <div class="row"><span class="pill">UBIGEO ${ubigeo}</span></div>
+          ${zipUrl ? `
+            <a class="btn" target="_blank" rel="noopener" href="${zipUrl}">
+              📥 Descargar ZIP MEF (2026)
+            </a>
+          ` : `
+            <div class="row"><b>Sin link ZIP</b></div>
+          `}
+        </div>
+      `;
+    }
 
     function onEachFeature(feature, layer) {
       layer.on({
         mouseover: (e) => e.target.setStyle({ weight: 2 }),
         mouseout: (e) => geojson.resetStyle(e.target),
         click: () => {
-          const p = feature.properties || {};
-
-          const zipUrl = p.mef_zip_url || "";
-          const distrito = p.distrito || p.dist || "Distrito";
-          const ubigeo = p.ubigeo || "";
-
-          const html = `
-            <div class="popup">
-              <h3>${distrito}</h3>
-              <div class="row">
-                <span class="pill">UBIGEO ${ubigeo}</span>
-              </div>
-
-              ${zipUrl ? `
-                <a class="btn" target="_blank" rel="noopener" href="${zipUrl}">
-                  📥 Descargar ZIP MEF (2026)
-                </a>
-              ` : `
-                <div class="row"><b>Sin link ZIP</b></div>
-              `}
-            </div>
-          `;
-
-          layer.bindPopup(html).openPopup();
+          layer.bindPopup(popupHtml(feature.properties || {})).openPopup();
         }
       });
+
+      // Guardar para búsqueda
+      const p = feature.properties || {};
+      featuresIndex.push({
+        feature,
+        layer,
+        distrito: String(p.distrito || p.dist || "").toUpperCase(),
+        ubigeo: String(p.ubigeo || ""),
+        zipUrl: String(p.mef_zip_url || "")
+      });
     }
+
+    function renderResults(list) {
+      if (!list.length) {
+        resultsEl.innerHTML = `<div style="color:#666; font-size:13px;">Sin resultados.</div>`;
+        return;
+      }
+
+      resultsEl.innerHTML = list.slice(0, 80).map(item => {
+        const name = item.feature.properties?.distrito || item.feature.properties?.dist || "Distrito";
+        const ubigeo = item.feature.properties?.ubigeo || "";
+        const hasZip = !!(item.feature.properties?.mef_zip_url);
+        return `
+          <div class="item" data-ubigeo="${ubigeo}">
+            <div class="name">${name}</div>
+            <div class="meta">UBIGEO: ${ubigeo} · ZIP: ${hasZip ? "Sí" : "No"}</div>
+          </div>
+        `;
+      }).join("");
+
+      // click en item -> zoom + popup
+      document.querySelectorAll(".item").forEach(el => {
+        el.addEventListener("click", () => {
+          const ub = el.getAttribute("data-ubigeo");
+          const found = featuresIndex.find(x => x.ubigeo === ub);
+          if (!found) return;
+
+          const b = found.layer.getBounds();
+          map.fitBounds(b, { maxZoom: 12 });
+          found.layer.bindPopup(popupHtml(found.feature.properties || {})).openPopup();
+        });
+      });
+    }
+
+    function doSearch() {
+      const q = (qEl.value || "").trim().toUpperCase();
+      if (!q) {
+        resultsEl.innerHTML = `<div style="color:#666; font-size:13px;">Escribe para buscar. Luego haz clic en un resultado.</div>`;
+        return;
+      }
+
+      const isUbigeoQuery = /^[0-9]{2,6}$/.test(q);
+      const filtered = featuresIndex.filter(x => {
+        if (isUbigeoQuery) return x.ubigeo.includes(q);
+        return x.distrito.includes(q);
+      });
+
+      renderResults(filtered);
+    }
+
+    qEl.addEventListener("input", doSearch);
+    btnClear.addEventListener("click", () => {
+      qEl.value = "";
+      doSearch();
+      qEl.focus();
+    });
 
     fetch("distritos_mef_2026_con_zip.geojson")
       .then(r => r.json())

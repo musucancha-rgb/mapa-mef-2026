@@ -67,6 +67,12 @@
     .leaflet-container a.leaflet-popup-close-button:hover {
         color: #f1f5f9;
     }
+    
+    /* Clase para asegurar click en móvil */
+    .touch-interactive {
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+    }
   </style>
 </head>
 
@@ -262,23 +268,27 @@
       const distrito = getDistrictName(p);
       const ubigeo = p.ubigeo || p.UBIGEO || "---";
       
+      // HTML del popup actualizado para móvil y solo icono
       return `
         <div class="font-sans">
             <div class="bg-slate-800 text-white p-4">
                 <h3 class="font-bold text-lg leading-tight mb-1 pr-6">${distrito}</h3>
                 <span class="inline-block bg-slate-600 text-xs px-2 py-0.5 rounded text-slate-200">UBIGEO: ${ubigeo}</span>
             </div>
-            <div class="p-4 bg-white">
+            <div class="p-4 bg-white flex justify-center items-center">
                 ${zipUrl ? `
-                    <p class="text-sm text-slate-600 mb-3">Listado disponible para descarga.</p>
+                    <!-- Botón SOLO ICONO grande, con protección para eventos de toque -->
                     <a href="${zipUrl}" target="_blank" rel="noopener noreferrer" 
-                       class="popup-btn-download block w-full bg-blue-600 hover:bg-blue-700 text-white text-center font-bold py-3 px-4 rounded-lg transition-colors duration-200 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-sm decoration-none">
-                       <i class="fa-solid fa-file-zipper"></i> Descargar ZIP
+                       onclick="event.stopPropagation();"
+                       ontouchstart="event.stopPropagation();"
+                       class="touch-interactive flex items-center justify-center w-20 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-xl shadow-blue-500/40 transform active:scale-95"
+                       title="Descargar ZIP">
+                       <i class="fa-solid fa-file-zipper text-3xl"></i>
                     </a>
                 ` : `
                     <div class="flex flex-col items-center justify-center py-2 text-slate-400">
                         <i class="fa-regular fa-folder-open text-2xl mb-2"></i>
-                        <span class="text-xs font-medium">No hay archivo disponible</span>
+                        <span class="text-xs font-medium">No hay archivo</span>
                     </div>
                 `}
             </div>
@@ -360,7 +370,6 @@
             </div>
 
             <!-- Zona de Clic para DESCARGA DIRECTA (Lado Derecho) -->
-            <!-- Usamos un <a> real para descarga nativa inmediata -->
             ${hasZip ? 
                 `<a href="${encodedZip}" target="_blank" rel="noopener noreferrer" 
                     onclick="event.stopPropagation()"

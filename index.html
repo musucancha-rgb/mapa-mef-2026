@@ -10,20 +10,53 @@
   <style>
     html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
     #map { height: 100%; }
+
+    /* Header superior */
+    .header {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
     .popup h3 { margin: 0 0 6px; font-size: 16px; }
     .row { margin: 6px 0; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid #ccc; font-size:12px; }
-    .btn {
-      display:block; margin-top:10px; padding:10px;
-      text-align:center; border-radius:10px;
-      border: 1px solid #000; text-decoration:none;
-      font-weight:bold; color:#000;
+    .pill {
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid #ccc;
+      font-size:12px;
     }
-    .btn.secondary { border-color:#999; color:#333; }
+    .btn {
+      display:block;
+      margin-top:10px;
+      padding:10px;
+      text-align:center;
+      border-radius:10px;
+      border: 1px solid #000;
+      text-decoration:none;
+      font-weight:bold;
+      color:#000;
+    }
   </style>
 </head>
 
 <body>
+
+  <!-- TÍTULO -->
+  <div class="header">
+    <b>Valores arancelarios de terrenos correspondiente al año fiscal 2026</b><br>
+    Fuente: Resolución Ministerial N° 514-2025-EF/15
+  </div>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -49,16 +82,16 @@
         click: () => {
           const p = feature.properties || {};
 
-          // ✅ Campo correcto en tu GeoJSON
           const zipUrl = p.mef_zip_url || "";
-
           const distrito = p.distrito || p.dist || "Distrito";
           const ubigeo = p.ubigeo || "";
 
           const html = `
             <div class="popup">
               <h3>${distrito}</h3>
-              <div class="row"><span class="pill">UBIGEO ${ubigeo}</span></div>
+              <div class="row">
+                <span class="pill">UBIGEO ${ubigeo}</span>
+              </div>
 
               ${zipUrl ? `
                 <a class="btn" target="_blank" rel="noopener" href="${zipUrl}">

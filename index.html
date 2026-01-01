@@ -72,6 +72,8 @@
     .touch-interactive {
         pointer-events: auto !important;
         touch-action: manipulation !important;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
     }
   </style>
 </head>
@@ -151,9 +153,28 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
+    // --- 0. FUNCIÓN GLOBAL DE DESCARGA (SOLUCIÓN MÓVIL) ---
+    // Esta función está fuera de todo para ser accesible globalmente
+    // y fuerza la apertura de la ventana de forma agresiva.
+    window.forceDownload = function(url) {
+        if (!url) return;
+        
+        // Intenta abrir en nueva pestaña (estándar)
+        const win = window.open(url, '_blank');
+        
+        // Fallback: Si el bloqueo de popups lo detiene, redirigir la ventana actual
+        if (!win) {
+            window.location.href = url;
+        }
+    };
+
     // --- 1. CONFIGURACIÓN DEL MAPA ---
-    // 'tap: true' es crítico para móviles
-    const map = L.map("map", { zoomControl: false, tap: true }).setView([-12.0464, -77.0428], 11); 
+    // 'tap: false' es CRÍTICO. En Leaflet moderno, 'tap: true' causa conflictos 
+    // en móviles modernos. Desactivarlo permite que los clicks nativos funcionen.
+    const map = L.map("map", { 
+        zoomControl: false, 
+        tap: false // SOLUCIÓN CLAVE PARA MÓVILES
+    }).setView([-12.0464, -77.0428], 11); 
     
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -209,7 +230,6 @@
 
     // --- 3. ESTILOS Y SELECCIÓN VISUAL ---
     
-    // Capa para mantener referencia al último layer seleccionado
     let selectedLayer = null;
 
     function style(feature) {
@@ -222,19 +242,16 @@
       };
     }
 
-    // Estilo para cuando se selecciona (CLICK) o se pasa el mouse
     function highlightStyle() {
         return {
             weight: 2, 
-            color: '#0047FF', // Azul borde
-            fillColor: '#0047FF', // Azul relleno
-            fillOpacity: 0.8      // MUY OPACO para "pintar todo el mapa de azul"
+            color: '#0047FF', 
+            fillColor: '#0047FF', 
+            fillOpacity: 0.8      
         };
     }
 
-    // Restaurar estilo
     function resetHighlight(e) {
-      // Solo reseteamos si no es el seleccionado actualmente
       if (e.target !== selectedLayer) {
         geojson.resetStyle(e.target);
       }
@@ -268,7 +285,7 @@
       const distrito = getDistrictName(p);
       const ubigeo = p.ubigeo || p.UBIGEO || "---";
       
-      // HTML del popup actualizado para móvil y solo icono
+      // Construimos el HTML. Usamos 'div' con onclick para saltarnos problemas de tags <a> en Leaflet móvil
       return `
         <div class="font-sans">
             <div class="bg-slate-800 text-white p-4">
@@ -277,14 +294,12 @@
             </div>
             <div class="p-4 bg-white flex justify-center items-center">
                 ${zipUrl ? `
-                    <!-- Botón SOLO ICONO grande, con protección para eventos de toque -->
-                    <a href="${zipUrl}" target="_blank" rel="noopener noreferrer" 
-                       onclick="event.stopPropagation();"
-                       ontouchstart="event.stopPropagation();"
-                       class="touch-interactive flex items-center justify-center w-20 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-xl shadow-blue-500/40 transform active:scale-95"
-                       title="Descargar ZIP">
+                    <div role="button"
+                         onclick="event.stopPropagation(); window.forceDownload('${zipUrl}');"
+                         ontouchend="event.stopPropagation(); window.forceDownload('${zipUrl}');"
+                         class="touch-interactive flex items-center justify-center w-20 h-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-xl shadow-blue-500/40 transform active:scale-95 cursor-pointer">
                        <i class="fa-solid fa-file-zipper text-3xl"></i>
-                    </a>
+                    </div>
                 ` : `
                     <div class="flex flex-col items-center justify-center py-2 text-slate-400">
                         <i class="fa-regular fa-folder-open text-2xl mb-2"></i>
@@ -297,7 +312,6 @@
     }
 
     function selectFeature(layer) {
-        // Resetear selección anterior
         if (selectedLayer && selectedLayer !== layer) {
             geojson.resetStyle(selectedLayer);
         }
@@ -306,13 +320,9 @@
         layer.setStyle(highlightStyle());
         layer.bringToFront();
         
-        // Animación de vuelo al distrito
         map.flyToBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 13, duration: 1.2 });
-        
-        // Abrir popup
         layer.openPopup();
 
-        // En móvil, contraer el panel para ver el mapa
         if (window.innerWidth < 768) {
             togglePanel(false);
         }
@@ -344,7 +354,7 @@
       });
     }
 
-    // --- 5. RENDERIZADO DE RESULTADOS (MODIFICADO) ---
+    // --- 5. RENDERIZADO DE RESULTADOS ---
     function renderResults(list) {
       if (!list.length) {
         resultsEl.innerHTML = `
@@ -354,29 +364,24 @@
         return;
       }
 
-      // Generamos el HTML
       resultsEl.innerHTML = list.slice(0, 50).map(item => { 
         const hasZip = !!item.zipUrl;
-        const encodedZip = item.zipUrl; // URL segura
         
         return `
           <div class="item-result group flex justify-between items-center p-3 rounded-xl border border-transparent hover:bg-blue-50 hover:border-blue-100 transition-all duration-200 mb-2 cursor-pointer" 
                data-ubigeo="${item.ubigeo}">
             
-            <!-- Zona de Clic para IR AL MAPA (Lado Izquierdo) -->
             <div class="flex-1" onclick="handleResultClick('${item.ubigeo}')">
                 <div class="font-bold text-slate-700 group-hover:text-blue-700 text-sm mb-0.5">${item.nameDisplay}</div>
                 <div class="text-[11px] text-slate-400 font-mono">UBIGEO: ${item.ubigeo}</div>
             </div>
 
-            <!-- Zona de Clic para DESCARGA DIRECTA (Lado Derecho) -->
             ${hasZip ? 
-                `<a href="${encodedZip}" target="_blank" rel="noopener noreferrer" 
-                    onclick="event.stopPropagation()"
-                    class="ml-3 flex items-center justify-center w-10 h-10 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                `<div onclick="event.stopPropagation(); window.forceDownload('${item.zipUrl}')"
+                    class="ml-3 flex items-center justify-center w-10 h-10 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm cursor-pointer"
                     title="Descarga directa">
                     <i class="fa-solid fa-download"></i>
-                 </a>` : 
+                 </div>` : 
                 `<div class="ml-3 flex items-center justify-center w-10 h-10 bg-slate-100 text-slate-300 rounded-lg">
                     <i class="fa-solid fa-ban"></i>
                  </div>`
@@ -386,7 +391,6 @@
       }).join("");
     }
 
-    // Función global para manejar el clic en el resultado (Zoom)
     window.handleResultClick = function(ubigeo) {
         const found = featuresIndex.find(x => x.ubigeo === ubigeo);
         if (found) {

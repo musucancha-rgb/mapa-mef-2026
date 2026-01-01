@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Mapa MEF 2026 – Descarga de listados</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 100%; }
+    .popup h3 { margin: 0 0 6px; font-size: 16px; }
+    .row { margin: 6px 0; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid #ccc; font-size:12px; }
+    .btn {
+      display:block; margin-top:10px; padding:10px;
+      text-align:center; border-radius:10px;
+      border: 1px solid #000; text-decoration:none;
+      font-weight:bold; color:#000;
+    }
+    .btn.secondary { border-color:#999; color:#333; }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const map = L.map("map").setView([-9.2, -75], 5);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+
+    function style() {
+      return { color: "#222", weight: 1, fillOpacity: 0.45 };
+    }
+
+    let geojson;
+
+    function onEachFeature(feature, layer) {
+      layer.on({
+        mouseover: (e) => e.target.setStyle({ weight: 2 }),
+        mouseout: (e) => geojson.resetStyle(e.target),
+        click: () => {
+          const p = feature.properties || {};
+
+          // ✅ Campo correcto en tu GeoJSON
+          const zipUrl = p.mef_zip_url || "";
+
+          const distrito = p.distrito || p.dist || "Distrito";
+          const ubigeo = p.ubigeo || "";
+
+          const html = `
+            <div class="popup">
+              <h3>${distrito}</h3>
+              <div class="row"><span class="pill">UBIGEO ${ubigeo}</span></div>
+
+              ${zipUrl ? `
+                <a class="btn" target="_blank" rel="noopener" href="${zipUrl}">
+                  📥 Descargar ZIP MEF (2026)
+                </a>
+              ` : `
+                <div class="row"><b>Sin link ZIP</b></div>
+              `}
+            </div>
+          `;
+
+          layer.bindPopup(html).openPopup();
+        }
+      });
+    }
+
+    fetch("distritos_mef_2026_con_zip.geojson")
+      .then(r => r.json())
+      .then(data => {
+        geojson = L.geoJSON(data, { style, onEachFeature }).addTo(map);
+        map.fitBounds(geojson.getBounds());
+      })
+      .catch(err => {
+        alert("Error cargando GeoJSON");
+        console.error(err);
+      });
+  </script>
+</body>
+</html>

@@ -27,6 +27,18 @@
     #map { z-index: 0; height: 100vh; width: 100vw; }
     .transition-all-300 { transition: all 0.3s ease; }
     
+    /* Animaciones de entrada/salida del panel */
+    .panel-hidden {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+        pointer-events: none;
+    }
+    .panel-visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+    }
+
     .leaflet-popup-content-wrapper {
         border-radius: 12px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
@@ -47,14 +59,25 @@
 
 <body class="bg-gray-100 overflow-hidden relative">
 
+  <!-- BOTÓN FLOTANTE PARA ABRIR (Visible cuando el panel está cerrado) -->
+  <button id="btnOpenPanel" class="absolute top-4 left-4 z-[1000] bg-white text-blue-600 p-3 rounded-xl shadow-lg border border-gray-200 transform transition-all duration-300 hover:scale-105 hover:bg-blue-50 hidden md:hidden">
+    <i class="fa-solid fa-magnifying-glass text-lg"></i>
+  </button>
+
   <!-- UI CONTAINER -->
-  <div class="absolute top-0 left-0 h-full w-full md:w-[400px] z-[1000] pointer-events-none flex flex-col p-4">
+  <!-- Modificado: justify-center items-center para centrar en móvil, md:justify-start para escritorio -->
+  <div id="uiContainer" class="absolute top-0 left-0 h-full w-full md:w-[400px] z-[1000] pointer-events-none flex flex-col p-4 justify-center items-center md:justify-start md:items-stretch transition-all duration-300">
     
     <!-- PANEL PRINCIPAL -->
-    <div class="pointer-events-auto bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl flex flex-col h-auto max-h-[90%] md:h-auto border border-white/20 overflow-hidden transition-all-300">
+    <div id="mainPanel" class="panel-visible pointer-events-auto bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl flex flex-col w-full max-w-sm md:max-w-none max-h-[60vh] md:max-h-[90%] border border-white/20 overflow-hidden transition-all duration-300">
       
       <!-- HEADER -->
-      <div class="bg-slate-50 p-5 border-b border-gray-100">
+      <div class="bg-slate-50 p-5 border-b border-gray-100 relative">
+        <!-- Botón de Cerrar (Solo visible en móvil/tablet o cuando se quiera contraer) -->
+        <button id="btnClosePanel" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-white/50 rounded-full p-2 w-8 h-8 flex items-center justify-center transition-colors md:hidden">
+            <i class="fa-solid fa-chevron-up"></i>
+        </button>
+
         <div class="flex items-center gap-2 mb-1">
           <div class="bg-blue-600 text-white p-1.5 rounded-lg">
             <i class="fa-solid fa-map-location-dot"></i>
@@ -83,7 +106,7 @@
       </div>
 
       <!-- LISTA DE RESULTADOS -->
-      <div id="results" class="flex-1 overflow-y-auto custom-scroll p-4 pt-0 space-y-2 bg-white">
+      <div id="results" class="flex-1 overflow-y-auto custom-scroll p-4 pt-0 space-y-2 bg-white min-h-[100px]">
         <div class="text-center py-8 opacity-60">
             <div class="bg-slate-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
                 <i class="fa-regular fa-keyboard text-slate-400 text-xl"></i>
@@ -134,6 +157,7 @@
     // --- 1. CONFIGURACIÓN DEL MAPA ---
     const map = L.map("map", { zoomControl: false }).setView([-12.0464, -77.0428], 11); // Centrado en Lima
     
+    // Zoom control movido para no estorbar en móviles
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -142,7 +166,40 @@
         maxZoom: 20
     }).addTo(map);
 
-    // --- 2. ESTILOS ---
+    // --- 2. GESTIÓN DEL PANEL (UI) ---
+    const mainPanel = document.getElementById('mainPanel');
+    const btnClosePanel = document.getElementById('btnClosePanel');
+    const btnOpenPanel = document.getElementById('btnOpenPanel');
+    let isPanelOpen = true;
+
+    function togglePanel(show) {
+        isPanelOpen = show;
+        if (show) {
+            mainPanel.classList.remove('panel-hidden');
+            mainPanel.classList.add('panel-visible');
+            btnOpenPanel.classList.add('hidden');
+        } else {
+            mainPanel.classList.remove('panel-visible');
+            mainPanel.classList.add('panel-hidden');
+            btnOpenPanel.classList.remove('hidden');
+        }
+    }
+
+    // Botón X del panel
+    btnClosePanel.addEventListener('click', () => togglePanel(false));
+    
+    // Botón flotante para reabrir
+    btnOpenPanel.addEventListener('click', () => togglePanel(true));
+
+    // Cerrar panel al hacer click en el mapa (solo si es móvil o pantalla pequeña para mejor UX)
+    map.on('click', () => {
+        if (window.innerWidth < 768) { // 768px es el breakpoint 'md' de Tailwind
+            togglePanel(false);
+        }
+    });
+
+
+    // --- 3. ESTILOS ---
     function style(feature) {
       return {
         color: "#3b82f6",
@@ -163,20 +220,17 @@
       geojson.resetStyle(e.target);
     }
 
-    // --- 3. LÓGICA DE DATOS ---
+    // --- 4. LÓGICA DE DATOS ---
     let geojson;
     let featuresIndex = []; 
     const resultsEl = document.getElementById("results");
     const qEl = document.getElementById("q");
     const btnClear = document.getElementById("btnClear");
 
-    // Función auxiliar para obtener el nombre del distrito de forma robusta
     function getDistrictName(props) {
-        // Intenta encontrar el nombre en las propiedades más comunes
         return props.distrito || props.dist || props.NOMBDIST || props.NOMB_DIST || props.name || "Distrito Desconocido";
     }
 
-    // Función auxiliar para quitar tildes (normalización) para búsqueda
     function normalizeText(text) {
         return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     }
@@ -226,14 +280,14 @@
       featuresIndex.push({
         feature,
         layer,
-        nameDisplay: rawName, // Nombre original para mostrar
-        nameSearch: normalizeText(rawName), // Nombre normalizado para buscar
+        nameDisplay: rawName,
+        nameSearch: normalizeText(rawName),
         ubigeo: String(p.ubigeo || p.UBIGEO || ""),
         zipUrl: String(p.mef_zip_url || "")
       });
     }
 
-    // --- 4. RENDERIZADO ---
+    // --- 5. RENDERIZADO ---
     function renderResults(list) {
       if (!list.length) {
         resultsEl.innerHTML = `
@@ -270,6 +324,11 @@
           document.querySelectorAll(".item-result").forEach(i => i.classList.remove("bg-blue-100", "border-blue-200"));
           el.classList.add("bg-blue-100", "border-blue-200");
 
+          // Cerrar panel en móvil al seleccionar resultado para ver el mapa
+          if (window.innerWidth < 768) {
+              togglePanel(false);
+          }
+
           const b = found.layer.getBounds();
           map.flyToBounds(b, { maxZoom: 13, duration: 1.5 });
           setTimeout(() => {
@@ -279,10 +338,10 @@
       });
     }
 
-    // --- 5. BUSCADOR INTELIGENTE ---
+    // --- 6. BUSCADOR INTELIGENTE ---
     function doSearch() {
       const rawQ = (qEl.value || "").trim();
-      const q = normalizeText(rawQ); // Normalizar búsqueda (quitar tildes, mayúsculas)
+      const q = normalizeText(rawQ); 
       
       if(rawQ.length > 0) btnClear.classList.remove('hidden');
       else btnClear.classList.add('hidden');
@@ -301,7 +360,7 @@
       const isUbigeoQuery = /^[0-9]+$/.test(q); 
       const filtered = featuresIndex.filter(x => {
         if (isUbigeoQuery) return x.ubigeo.startsWith(q);
-        return x.nameSearch.includes(q); // Buscar en nombre normalizado
+        return x.nameSearch.includes(q); 
       });
 
       renderResults(filtered);
@@ -314,7 +373,7 @@
       qEl.focus();
     });
 
-    // --- 6. CARGA DE DATOS ---
+    // --- 7. CARGA DE DATOS ---
     fetch("distritos_mef_2026_con_zip.geojson")
       .then(r => {
           if (!r.ok) throw new Error("No se encontró archivo local");
@@ -327,8 +386,6 @@
       .catch(err => {
         console.warn("Modo Demo Activado");
         
-        // --- DATOS MOCK AMPLIADOS PARA PRUEBAS ---
-        // Generamos polígonos aproximados para distritos populares de Lima
         const mockData = {
             "type": "FeatureCollection",
             "features": [

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Mapa MEF 2026 – Descarga de listados</title>
   
-  <!-- METADATOS NATIVOS (IGUAL QUE EJEMPLO) -->
+  <!-- METADATOS NATIVOS -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1e293b" />
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,14 +17,14 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Google Fonts: Inter (HOMOLOGADO) -->
+  <!-- Google Fonts: Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Iconos -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    /* ESTILOS BASE HOMOLOGADOS */
+    /* ESTILOS BASE */
     body { 
         font-family: 'Inter', sans-serif; 
         overscroll-behavior-y: none;
@@ -40,11 +40,11 @@
     
     #map { z-index: 0; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; }
     
-    /* ANIMACIONES DEL PANEL (Siempre desde la izquierda ahora) */
+    /* ANIMACIONES DEL PANEL */
     .panel-hidden { transform: translateX(-100%); opacity: 0; pointer-events: none; }
     .panel-visible { transform: translateX(0); opacity: 1; pointer-events: auto; }
 
-    /* Estilos del Popup Leaflet (Minimalista) */
+    /* Estilos del Popup Leaflet */
     .leaflet-popup-content-wrapper {
         border-radius: 12px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
@@ -56,7 +56,7 @@
     .leaflet-popup-tip { box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
     .leaflet-container a.leaflet-popup-close-button { display: none; }
     
-    /* Controles de Zoom siempre arriba */
+    /* Controles de Zoom */
     .leaflet-control-zoom { z-index: 9999 !important; border: none !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important; }
     .leaflet-bar a { border-radius: 8px !important; width: 36px !important; height: 36px !important; line-height: 36px !important; margin-bottom: 4px !important; color: #475569 !important; font-weight: bold !important; }
   </style>
@@ -64,21 +64,23 @@
 
 <body class="bg-gray-100 overflow-hidden relative h-screen w-screen">
 
-  <!-- BOTÓN LATERAL DESKTOP Y MÓVIL (ABRIR/CERRAR) -->
-  <!-- Visible siempre para permitir reabrir el panel -->
+  <!-- BOTÓN LATERAL (ABRIR/CERRAR) -->
   <button id="toggleSideBtn" class="absolute left-0 top-1/2 transform -translate-y-1/2 z-[2000] bg-white text-blue-700 w-8 h-20 rounded-r-xl shadow-xl border-y border-r border-gray-300 flex items-center justify-center hover:bg-blue-50 transition-all duration-300">
     <i id="toggleIcon" class="fa-solid fa-chevron-left text-lg"></i>
   </button>
 
   <!-- CONTENEDOR UI -->
-  <!-- Alineado a la izquierda en móvil y escritorio -->
-  <div id="uiContainer" class="absolute inset-0 z-[1000] pointer-events-none flex flex-col justify-center items-start transition-all duration-300 md:p-4 md:w-[450px]">
+  <div id="uiContainer" class="absolute inset-0 z-[1000] pointer-events-none flex flex-col justify-start items-start transition-all duration-300 md:justify-center md:p-4 md:w-[450px]">
     
-    <!-- PANEL PRINCIPAL -->
-    <!-- Estilo unificado de Sidebar para móvil y desktop -->
-    <div id="mainPanel" class="panel-visible pointer-events-auto bg-white/95 backdrop-blur-md shadow-[10px_0_40px_rgba(0,0,0,0.2)] md:shadow-2xl rounded-r-2xl md:rounded-2xl flex flex-col w-[85vw] md:w-full h-[95vh] md:h-[98%] border-r border-t border-b border-white/20 overflow-hidden transition-all duration-500 ease-in-out">
+    <!-- PANEL PRINCIPAL (SIDEBAR) -->
+    <!-- 
+         Cambios Móvil:
+         - h-[100dvh]: Altura dinámica exacta del viewport móvil (soluciona corte inferior).
+         - rounded-none md:rounded-2xl: Bordes rectos en móvil para llenar pantalla verticalmente.
+    -->
+    <div id="mainPanel" class="panel-visible pointer-events-auto bg-white/95 backdrop-blur-md shadow-[10px_0_40px_rgba(0,0,0,0.2)] md:shadow-2xl rounded-r-2xl md:rounded-2xl flex flex-col w-[85vw] md:w-full h-[100dvh] md:h-[98%] border-r border-t border-b border-white/20 overflow-hidden transition-all duration-500 ease-in-out">
       
-      <!-- HEADER HOMOLOGADO -->
+      <!-- HEADER -->
       <div class="bg-slate-50/80 p-5 border-b border-gray-200 shrink-0">
         <div class="flex items-center gap-2 mb-1">
           <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded">R.M. N° 514-2025-EF/15</span>
@@ -86,7 +88,7 @@
         <h1 class="text-2xl font-extrabold text-slate-800 leading-none mb-0.5">Valores Arancelarios</h1>
         <h2 class="text-lg font-bold text-slate-600 leading-tight">Mapa MEF 2026</h2>
         
-        <!-- BUSCADOR INTEGRADO EN HEADER -->
+        <!-- BUSCADOR -->
         <div class="mt-4 relative group">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <i class="fa-solid fa-magnifying-glass text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
@@ -101,9 +103,8 @@
         </div>
       </div>
 
-      <!-- LISTA DE RESULTADOS (BODY SCROLLABLE) -->
+      <!-- LISTA DE RESULTADOS -->
       <div id="results" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-2 bg-slate-50/50">
-        <!-- Estado inicial -->
         <div class="text-center py-10 opacity-50">
             <div class="bg-white rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3 shadow-sm">
                 <i class="fa-solid fa-map-location-dot text-slate-300 text-2xl"></i>
@@ -112,12 +113,13 @@
         </div>
       </div>
 
-      <!-- FOOTER NEGRO (HOMOLOGADO) -->
-      <div class="bg-black text-white shrink-0 p-4 border-t border-gray-800 z-20 flex flex-col items-center justify-center gap-3">
+      <!-- FOOTER NEGRO -->
+      <!-- 'pb-6 md:pb-4' agrega padding extra abajo en móvil para evitar zonas táctiles del sistema -->
+      <div class="bg-black text-white shrink-0 p-4 pb-8 md:pb-4 border-t border-gray-800 z-20 flex flex-col items-center justify-center gap-3">
           <p class="text-[10px] font-bold text-gray-400 tracking-wide">Desarrollado por Lab Urban Risk</p>
           
           <div class="flex items-center gap-6">
-               <!-- Icono Valoración (NARANJA FOSFORESCENTE) -->
+               <!-- Icono Valoración -->
                <a href="https://musucancha-rgb.github.io/PERU.Valor_edificacion/" target="_blank" class="text-orange-500 hover:text-orange-400 transition-transform transform hover:scale-110" title="Valorar Edificación"><i class="fa-solid fa-calculator text-xl"></i></a>
                
                <a href="https://youtube.com/@laburbanrisk?si=COqNXDTX7TAQSqDO" target="_blank" class="text-red-500 hover:text-red-400 transition-transform transform hover:scale-110"><i class="fa-brands fa-youtube text-xl"></i></a>
@@ -140,7 +142,7 @@
         zoomControl: false 
     }).setView([-12.0464, -77.0428], 11); 
     
-    // Zoom top-right para no tapar el panel en mobile
+    // Zoom top-right
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {

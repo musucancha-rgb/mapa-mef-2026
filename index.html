@@ -40,15 +40,9 @@
     
     #map { z-index: 0; height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; }
     
-    /* ANIMACIONES DEL PANEL (Drawer/Sidebar) */
-    .panel-hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
-    .panel-visible { transform: translateY(0); opacity: 1; pointer-events: auto; }
-    
-    /* Desktop: Slide lateral */
-    @media (min-width: 768px) {
-        .panel-hidden { transform: translateX(-100%); }
-        .panel-visible { transform: translateX(0); }
-    }
+    /* ANIMACIONES DEL PANEL (Siempre desde la izquierda ahora) */
+    .panel-hidden { transform: translateX(-100%); opacity: 0; pointer-events: none; }
+    .panel-visible { transform: translateX(0); opacity: 1; pointer-events: auto; }
 
     /* Estilos del Popup Leaflet (Minimalista) */
     .leaflet-popup-content-wrapper {
@@ -70,36 +64,20 @@
 
 <body class="bg-gray-100 overflow-hidden relative h-screen w-screen">
 
-  <!-- BOTÓN LINK A CALCULADORA (SOLICITADO) -->
-  <a href="https://musucancha-rgb.github.io/PERU.Valor_edificacion/" target="_blank" class="absolute top-4 right-16 md:right-4 z-[2000] bg-green-600 text-white w-12 h-12 rounded-xl shadow-xl flex items-center justify-center hover:bg-green-700 active:scale-95 transition-all duration-300 group ring-2 ring-white/50" title="Valorar Edificación">
-    <i class="fa-solid fa-calculator text-xl"></i>
-    <!-- Tooltip -->
-    <span class="absolute right-14 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg hidden md:block">
-      Valorar Predio
-    </span>
-  </a>
-
-  <!-- BOTÓN FLOTANTE MÓVIL (ABRIR BÚSQUEDA) - HOMOLOGADO -->
-  <button id="mobileToggleBtn" class="md:hidden absolute bottom-8 left-1/2 transform -translate-x-1/2 z-[2000] bg-blue-600 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:bg-blue-700 active:scale-90 transition-all duration-200 ring-4 ring-white/30">
-    <i class="fa-solid fa-magnifying-glass text-xl"></i>
-  </button>
-
-  <!-- BOTÓN LATERAL DESKTOP (ABRIR/CERRAR) - HOMOLOGADO -->
-  <button id="toggleSideBtn" class="hidden md:flex absolute left-0 top-1/2 transform -translate-y-1/2 z-[2000] bg-white text-blue-700 w-8 h-20 rounded-r-xl shadow-xl border-y border-r border-gray-300 items-center justify-center hover:bg-blue-50 transition-all duration-300">
+  <!-- BOTÓN LATERAL DESKTOP Y MÓVIL (ABRIR/CERRAR) -->
+  <!-- Visible siempre para permitir reabrir el panel -->
+  <button id="toggleSideBtn" class="absolute left-0 top-1/2 transform -translate-y-1/2 z-[2000] bg-white text-blue-700 w-8 h-20 rounded-r-xl shadow-xl border-y border-r border-gray-300 flex items-center justify-center hover:bg-blue-50 transition-all duration-300">
     <i id="toggleIcon" class="fa-solid fa-chevron-left text-lg"></i>
   </button>
 
   <!-- CONTENEDOR UI -->
-  <div id="uiContainer" class="absolute inset-0 z-[1000] pointer-events-none flex flex-col justify-end md:justify-start items-center md:items-stretch transition-all duration-300 md:p-4 md:w-[450px]">
+  <!-- Alineado a la izquierda en móvil y escritorio -->
+  <div id="uiContainer" class="absolute inset-0 z-[1000] pointer-events-none flex flex-col justify-center items-start transition-all duration-300 md:p-4 md:w-[450px]">
     
     <!-- PANEL PRINCIPAL -->
-    <div id="mainPanel" class="panel-visible pointer-events-auto bg-white/95 backdrop-blur-md shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-2xl rounded-t-3xl md:rounded-2xl flex flex-col w-full h-[85vh] md:h-[98%] border-t border-white/20 overflow-hidden transition-all duration-500 ease-in-out">
+    <!-- Estilo unificado de Sidebar para móvil y desktop -->
+    <div id="mainPanel" class="panel-visible pointer-events-auto bg-white/95 backdrop-blur-md shadow-[10px_0_40px_rgba(0,0,0,0.2)] md:shadow-2xl rounded-r-2xl md:rounded-2xl flex flex-col w-[85vw] md:w-full h-[95vh] md:h-[98%] border-r border-t border-b border-white/20 overflow-hidden transition-all duration-500 ease-in-out">
       
-      <!-- BARRA DE ARRASTRE (MÓVIL) -->
-      <div class="md:hidden w-full flex justify-center pt-3 pb-1 cursor-pointer" onclick="togglePanel(false)">
-        <div class="w-12 h-1.5 bg-gray-300 rounded-full"></div>
-      </div>
-
       <!-- HEADER HOMOLOGADO -->
       <div class="bg-slate-50/80 p-5 border-b border-gray-200 shrink-0">
         <div class="flex items-center gap-2 mb-1">
@@ -171,10 +149,9 @@
         maxZoom: 20
     }).addTo(map);
 
-    // --- 2. GESTIÓN DEL PANEL (DRAWER) ---
+    // --- 2. GESTIÓN DEL PANEL (SIDEBAR) ---
     const mainPanel = document.getElementById('mainPanel');
     const toggleSideBtn = document.getElementById('toggleSideBtn');
-    const mobileToggleBtn = document.getElementById('mobileToggleBtn');
     const toggleIcon = document.getElementById('toggleIcon');
     const uiContainer = document.getElementById('uiContainer');
     
@@ -196,21 +173,16 @@
             mainPanel.classList.remove('panel-hidden');
             mainPanel.classList.add('panel-visible');
             toggleIcon.className = "fa-solid fa-chevron-left text-lg";
-            uiContainer.classList.remove('pointer-events-none'); // Permitir click en panel
-            // Ocultar botón flotante móvil cuando panel está abierto
-            mobileToggleBtn.classList.add('scale-0', 'opacity-0');
+            uiContainer.classList.remove('pointer-events-none');
         } else {
             mainPanel.classList.remove('panel-visible');
             mainPanel.classList.add('panel-hidden');
             toggleIcon.className = "fa-solid fa-chevron-right text-lg";
-            uiContainer.classList.add('pointer-events-none'); // Permitir click a través del container
-            // Mostrar botón flotante móvil
-            mobileToggleBtn.classList.remove('scale-0', 'opacity-0');
+            uiContainer.classList.add('pointer-events-none');
         }
     }
 
     toggleSideBtn.addEventListener('click', () => togglePanel());
-    mobileToggleBtn.addEventListener('click', () => togglePanel(true));
 
     // --- 3. ESTILOS Y SELECCIÓN VISUAL ---
     let selectedLayer = null;
